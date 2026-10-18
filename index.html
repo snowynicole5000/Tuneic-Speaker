@@ -98,6 +98,15 @@ code { font-family: var(--font-mono); font-size: .85em }
       </select>
     </div>
     <div class="field">
+      <label for="brk">Word breaks</label>
+      <select id="brk">
+        <option value="low">Low root note</option>
+        <option value="flick">High flick</option>
+        <option value="slide">Slide down</option>
+        <option value="pause">Silent pause</option>
+      </select>
+    </div>
+    <div class="field">
       <label for="speed">Speed <span id="speedOut"></span></label>
       <input type="range" id="speed" min="4" max="30" step="1" value="16">
     </div>
@@ -282,6 +291,31 @@ function breath(t0, t1) {   // soft airy hiss under the flute
   n.connect(f); f.connect(g); g.connect(master); n.start(t0); n.stop(t1);
 }
 
+/* Word-break sounds: these replace the silent gap between words,
+   so speech flows as one string but a listener can still find the breaks. */
+function playBreak(base, t, dur, mode, voice) {
+  if (mode === 'low') {                 // the root note, one octave down
+    playNote(base / 2, t, dur * 1.5, voice);
+    return dur * 1.5;
+  }
+  if (mode === 'flick') {               // two very fast high octave notes
+    playNote(base * 2, t, dur * 0.5, voice);
+    playNote(base * 4, t + dur * 0.5, dur * 0.5, voice);
+    return dur;
+  }
+  if (mode === 'slide') {               // a quick glide from high back down to the root
+    const o = ctx.createOscillator(), g = ctx.createGain();
+    o.type = 'triangle';
+    o.frequency.setValueAtTime(base * 2, t);
+    o.frequency.exponentialRampToValueAtTime(base, t + dur * 1.5);
+    g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(0.22, t + 0.015);
+    g.gain.setValueAtTime(0.22, t + dur * 1.2); g.gain.linearRampToValueAtTime(0, t + dur * 1.6);
+    o.connect(g); g.connect(master); o.start(t); o.stop(t + dur * 1.7);
+    return dur * 1.5;
+  }
+  return dur * 3;                       // 'pause': plain silence, like before
+}
+
 function stopAll() {
   timers.forEach(clearTimeout); timers = [];
   if (master) { master.gain.setTargetAtTime(0, ctx.currentTime, 0.02); master = null; }
@@ -302,7 +336,13 @@ function speak(items, opts) {
       notes.forEach(n => { playNote(base * Math.pow(2, (SEMITONES[n.d] + 12 * n.oct) / 12), t, dur, opts.voice); t += dur; });
       t += dur;                      // tiny gap between sounds
     });
-    t += dur * item.pause;           // gap between words
+    const isLast = wi === items.length - 1;
+    if (item.pause > 3 || opts.brk === 'pause') {
+      t += dur * item.pause;           // real rest at punctuation (or if breaks are off)
+    } else if (!isLast) {
+      timers.push(setTimeout(() => showBreak(), (t - t0) * 1000 + 80));
+      t += playBreak(base, t, dur, opts.brk, opts.voice) + dur;
+    }
   });
   if (opts.voice === 'flute') breath(t0, t);
   timers.push(setTimeout(() => { lightChip(null); showNow(null); }, (t - t0) * 1000 + 300));
@@ -336,6 +376,13 @@ function showNow(name, notes) {
   $('nowNotes').textContent = notes.map(n => n.d + (n.oct ? "'" : '')).join(' · ') + '  (as in ' + EXAMPLES[name] + ')';
 }
 
+function showBreak() {
+  HEX_ORDER.forEach(d => $('n' + d).setAttribute('fill', 'var(--panel)'));
+  lightChip(null);
+  $('nowName').textContent = 'Word break';
+  $('nowNotes').textContent = $('brk').selectedOptions[0].textContent;
+}
+
 function lightChip(id) {
   document.querySelectorAll('.chip.lit').forEach(c => c.classList.remove('lit'));
   if (id) { const c = document.querySelector(`[data-id="${id}"]`); if (c) c.classList.add('lit'); }
@@ -351,7 +398,7 @@ function render() {
 }
 
 function opts() {
-  return { key: +$('key').value, speed: +$('speed').value, voice: $('voice').value };
+  return { key: +$('key').value, speed: +$('speed').value, voice: $('voice').value, brk: $('brk').value };
 }
 
 function save() {
@@ -362,7 +409,7 @@ function init() {
   $('key').innerHTML = NOTE_NAMES.map((n, i) => `<option value="${i}">${n}</option>`).join('');
   try {
     const s = JSON.parse(localStorage.getItem('tuneic') || 'null');
-    if (s) { $('text').value = s.text ?? $('text').value; $('key').value = s.key ?? 0; $('speed').value = s.speed ?? 16; $('voice').value = s.voice ?? 'flute'; }
+    if (s) { $('text').value = s.text ?? $('text').value; $('key').value = s.key ?? 0; $('speed').value = s.speed ?? 16; $('voice').value = s.voice ?? 'flute'; $('brk').value = s.brk ?? 'low'; }
   } catch (e) {}
   $('speedOut').textContent = '· ' + $('speed').value + '/s';
   drawHex(); render();
@@ -372,12 +419,12 @@ function init() {
   $('chart').onclick = e => { const b = e.target.closest('button'); if (b) speak([{ sounds: [b.dataset.s], pause: 0 }], opts()); };
 
   $('text').oninput = () => { render(); save(); };
-  ['key', 'voice'].forEach(id => $(id).onchange = save);
+  ['key', 'voice', 'brk'].forEach(id => $(id).onchange = save);
   $('speed').oninput = () => { $('speedOut').textContent = '· ' + $('speed').value + '/s'; save(); };
   $('play').onclick = () => { const items = render(); if (items.length) speak(items, opts()); };
   $('stop').onclick = stopAll;
 
-  fetch('cmudict.txt').then(r => { if (!r.ok) throw 0; return r.text(); }).then(txt => {
+  fetch('tuneic-cmudict.txt').then(r => { if (!r.ok) throw 0; return r.text(); }).then(txt => {
     for (const line of txt.split('\n')) {
       const sp = line.indexOf(' ');
       if (sp > 0) DICT.set(line.slice(0, sp), line.slice(sp + 1).trim().split(' '));

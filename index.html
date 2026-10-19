@@ -71,6 +71,18 @@ summary { cursor: pointer; font-weight: 700 }
 code { font-family: var(--font-mono); font-size: .85em }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important } }
 .node { transition: fill .06s }
+.beads { display: flex; flex-wrap: wrap; gap: 10px 0; background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 14px 10px }
+.beads svg { overflow: visible }
+.bead .halo { opacity: 0; transition: opacity .06s }
+.bead.lit .halo { opacity: .6 }
+.recipe { margin: 8px 0 0; padding-left: 1.4em; font-size: .92rem; display: flex; flex-direction: column; gap: 6px }
+.recipe li { padding-left: 4px }
+.recipe .wd { font-weight: 700 }
+.recipe .knot { color: var(--muted); font-style: italic }
+.sw { display: inline-block; width: .9em; height: .9em; border-radius: 50%; vertical-align: -1px; border: 1px solid var(--line); margin-right: 3px }
+.tiles { display: flex; flex-wrap: wrap; gap: 8px 6px; margin-top: 8px }
+.tile { width: 64px; display: flex; flex-direction: column; align-items: center; gap: 2px; font-size: .72rem; color: var(--muted); text-align: center; line-height: 1.2 }
+.tile b { color: var(--ink); font-family: var(--font-mono); font-size: .78rem }
 </style>
 
 <main>
@@ -131,6 +143,27 @@ code { font-family: var(--font-mono); font-size: .85em }
     <div class="lbl" style="margin-bottom:8px">Sounds</div>
     <div class="words" id="words"></div>
   </section>
+
+  <section>
+    <div class="lbl" style="margin-bottom:8px">Beads</div>
+    <div class="beads" id="beads"></div>
+  </section>
+
+  <details id="recipeBox">
+    <summary>Stringing recipe</summary>
+    <p class="hint">Bead by bead, left to right. Notched beads read vowel first.</p>
+    <ol class="recipe" id="recipe"></ol>
+    <div class="row" style="margin-top:12px"><button id="copyRecipe">Copy recipe</button><span class="msg" id="copyMsg" style="align-self:center"></span></div>
+  </details>
+
+  <details>
+    <summary>Bead chart</summary>
+    <p class="hint">Each bead is one syllable. Shape is the consonant, color is the vowel. A plain round bead has no consonant, a white bead has no vowel, a notch means the vowel comes first, and a knot ends each word.</p>
+    <div class="lbl" style="margin-top:12px">Consonant shapes</div>
+    <div class="tiles" id="shapeTiles"></div>
+    <div class="lbl" style="margin-top:16px">Vowel colors</div>
+    <div class="tiles" id="colorTiles"></div>
+  </details>
 
   <details>
     <summary>Sound chart and tips</summary>
@@ -235,6 +268,83 @@ function parse(text) {
     }
   }
   return items;
+}
+
+/* =========================================================
+   2b. THE BEAD SCRIPT
+   One bead = one syllable.
+   SHAPE = consonant, COLOR = vowel, NOTCH = vowel comes first.
+   Plain round = no consonant. White = no vowel. Knot = word break.
+   Change the colors and names here to match your real beads!
+   ========================================================= */
+const VOWEL_COLORS = {
+  OU:['#D7263D','red'], OW:['#F46036','orange'], UH:['#F2C14E','yellow'], OI:['#A1C181','sage'],
+  IE:['#2E933C','green'], AR:['#1B998B','teal'], I:['#3FC1C9','aqua'], EH:['#4EA5D9','sky blue'],
+  EER:['#2E4A9E','navy'], A:['#5B3E96','indigo'], ORE:['#9B5DE5','purple'], EE:['#D81E9B','magenta'],
+  OH:['#F7A1C4','pink'], AY:['#8C5A3C','brown'], OO:['#D2B48C','tan'], IR:['#7D7D7D','gray'],
+  AH:['#222222','black'], ERE:['#B8962E','gold']
+};
+const NO_VOWEL = ['#F4F4F0', 'white'];
+
+// Shape drawing helpers: each returns an SVG path centered on (x, y) with size r
+const pathOf = pts => 'M' + pts.map(p => p[0].toFixed(1) + ' ' + p[1].toFixed(1)).join(' L') + ' Z';
+const polyS = (n, rot = -Math.PI / 2, sx = 1, sy = 1) => (x, y, r) =>
+  pathOf([...Array(n)].map((_, i) => { const a = rot + i * 2 * Math.PI / n; return [x + r * sx * Math.cos(a), y + r * sy * Math.sin(a)]; }));
+const starS = n => (x, y, r) =>
+  pathOf([...Array(2 * n)].map((_, i) => { const a = -Math.PI / 2 + i * Math.PI / n, rr = i % 2 ? r * 0.5 : r; return [x + rr * Math.cos(a), y + rr * Math.sin(a)]; }));
+const flowerS = n => (x, y, r) =>
+  pathOf([...Array(72)].map((_, i) => { const a = i * Math.PI / 36, rr = r * (0.78 + 0.22 * Math.cos(n * a)); return [x + rr * Math.cos(a), y + rr * Math.sin(a)]; }));
+const ovalS = (sx, sy) => (x, y, r) =>
+  `M${x - r * sx} ${y} A ${r * sx} ${r * sy} 0 1 0 ${x + r * sx} ${y} A ${r * sx} ${r * sy} 0 1 0 ${x - r * sx} ${y} Z`;
+
+const CONSONANT_SHAPES = {
+  S:[polyS(3),'triangle'], TH:[polyS(4, -Math.PI / 4),'square'], M:[polyS(5),'pentagon'], F:[polyS(6),'hexagon'],
+  B:[polyS(8, -Math.PI / 8),'octagon'], NG:[polyS(4),'diamond'], D:[starS(4),'4-point star'], N:[starS(5),'5-point star'],
+  SH:[starS(6),'6-point star'], K:[starS(8),'8-point star'], T:[flowerS(4),'4-petal flower'], R:[flowerS(5),'5-petal flower'],
+  L:[flowerS(6),'6-petal flower'], W:[flowerS(8),'8-petal flower'], P:[ovalS(1, 0.6),'wide oval'], J:[ovalS(0.6, 1),'tall oval'],
+  Y:[polyS(3, Math.PI / 2),'down triangle'],
+  CH:[(x, y, r) => `M${x - r} ${y + r * 0.35} A ${r} ${r} 0 0 1 ${x + r} ${y + r * 0.35} Z`,'half moon'],
+  H:[(x, y, r) => `M${x} ${y - r} C ${x + r * 1.1} ${y - r * 0.1}, ${x + r * 0.7} ${y + r}, ${x} ${y + r} C ${x - r * 0.7} ${y + r}, ${x - r * 1.1} ${y - r * 0.1}, ${x} ${y - r} Z`,'teardrop'],
+  DH:[(x, y, r) => { const t = r * 0.38; return pathOf([[x-t,y-r],[x+t,y-r],[x+t,y-t],[x+r,y-t],[x+r,y+t],[x+t,y+t],[x+t,y+r],[x-t,y+r],[x-t,y+t],[x-r,y+t],[x-r,y-t],[x-t,y-t]]); },'plus'],
+  V:[(x, y, r) => `M${x} ${y + r} C ${x - r * 1.4} ${y - r * 0.2}, ${x - r * 0.5} ${y - r * 1.2}, ${x} ${y - r * 0.45} C ${x + r * 0.5} ${y - r * 1.2}, ${x + r * 1.4} ${y - r * 0.2}, ${x} ${y + r} Z`,'heart'],
+  Z:[(x, y, r) => { const w = r * 0.85; return `M${x-w} ${y-r} H ${x+w} Q ${x+r} ${y-r} ${x+r} ${y-w} V ${y+w} Q ${x+r} ${y+r} ${x+w} ${y+r} H ${x-w} Q ${x-r} ${y+r} ${x-r} ${y+w} V ${y-w} Q ${x-r} ${y-r} ${x-w} ${y-r} Z`; },'rounded square'],
+  G:[polyS(4, 0, 1.25, 0.75),'bicone'],
+  ZH:[(x, y, r) => `M${x - r * 1.1} ${y - r * 0.55} H ${x + r * 1.1} V ${y + r * 0.55} H ${x - r * 1.1} Z`,'tube']
+};
+const NO_CONSONANT = [ovalS(1, 1), 'round'];
+
+// Group a word's sounds into beads. Consonant + vowel is preferred;
+// vowel + consonant (notched) only when that consonant isn't followed by a vowel.
+function toBeads(sounds) {
+  const beads = [];
+  for (let i = 0; i < sounds.length; i++) {
+    const a = sounds[i], b = sounds[i + 1], c = sounds[i + 2];
+    if (CONSONANTS[a] && VOWELS[b]) { beads.push({ c: a, v: b, notch: false, idx: [i, i + 1] }); i++; }
+    else if (VOWELS[a] && CONSONANTS[b] && !VOWELS[c]) { beads.push({ v: a, c: b, notch: true, idx: [i, i + 1] }); i++; }
+    else if (VOWELS[a]) beads.push({ v: a, idx: [i] });
+    else beads.push({ c: a, idx: [i] });
+  }
+  return beads;
+}
+
+function beadSVG(x, y, r, bead) {
+  const shape = bead.c ? CONSONANT_SHAPES[bead.c][0] : NO_CONSONANT[0];
+  const color = bead.v ? VOWEL_COLORS[bead.v][0] : NO_VOWEL[0];
+  let s = `<circle class="halo" cx="${x}" cy="${y}" r="${r + 7}" fill="var(--glow)"/>`;
+  s += `<path d="${shape(x, y, r)}" fill="${color}" stroke="var(--ink)" stroke-width="1.3" stroke-linejoin="round"/>`;
+  if (bead.notch) s += `<path d="M${x - 4} ${y - r - 3} L${x} ${y - r + 4} L${x + 4} ${y - r - 3}" fill="none" stroke="var(--ink)" stroke-width="2.2" stroke-linecap="round"/>`;
+  return s;
+}
+
+function knotSVG(x, y) {
+  return `<path d="M${x-6} ${y} C ${x-6} ${y-9}, ${x+6} ${y-9}, ${x+6} ${y} S ${x-6} ${y+9}, ${x-6} ${y}" fill="none" stroke="var(--muted)" stroke-width="2"/><circle cx="${x}" cy="${y}" r="3" fill="var(--muted)"/>`;
+}
+
+function beadName(b) {
+  const shape = b.c ? CONSONANT_SHAPES[b.c][1] : NO_CONSONANT[1];
+  const col = b.v ? VOWEL_COLORS[b.v] : NO_VOWEL;
+  const sounds = b.notch ? b.v + ' ' + b.c : [b.c, b.v].filter(Boolean).join(' ');
+  return `<span class="sw" style="background:${col[0]}"></span>${col[1]} ${shape}${b.notch ? ', notched' : ''} <span style="color:var(--muted)">(${sounds})</span>`;
 }
 
 /* =========================================================
@@ -384,8 +494,36 @@ function showBreak() {
 }
 
 function lightChip(id) {
-  document.querySelectorAll('.chip.lit').forEach(c => c.classList.remove('lit'));
-  if (id) { const c = document.querySelector(`[data-id="${id}"]`); if (c) c.classList.add('lit'); }
+  document.querySelectorAll('.chip.lit, .bead.lit').forEach(c => c.classList.remove('lit'));
+  if (id) {
+    const c = document.querySelector(`.chip[data-id="${id}"]`); if (c) c.classList.add('lit');
+    const b = document.querySelector(`.bead[data-sounds~="${id}"]`); if (b) b.classList.add('lit');
+  }
+}
+
+function renderBeads(items) {
+  const step = 32, cy = 22;
+  let html = '', recipe = '';
+  items.forEach((it, wi) => {
+    const beads = toBeads(it.sounds), last = wi === items.length - 1;
+    const inner = beads.length * step, W = inner + (last ? 6 : 26);
+    let s = `<svg width="${W}" height="56" viewBox="0 0 ${W} 56" role="img" aria-label="${it.text.replace(/"/g, '')} in beads">`;
+    s += `<line x1="0" y1="${cy}" x2="${W}" y2="${cy}" stroke="var(--muted)" stroke-width="1.3"/>`;
+    beads.forEach((b, bi) => {
+      s += `<g class="bead" data-sounds="${b.idx.map(i => wi + ':' + i).join(' ')}">${beadSVG(18 + bi * step, cy, 12, b)}</g>`;
+    });
+    if (!last) s += knotSVG(inner + 13, cy);
+    s += `<text x="${inner / 2 + 2}" y="52" text-anchor="middle" fill="var(--muted)" style="font-size:11px">${it.text.replace(/</g, '&lt;')}</text></svg>`;
+    html += s;
+    recipe += `<li class="wd">${it.text.replace(/</g, '&lt;')}</li>` + beads.map(b => `<li>${beadName(b)}</li>`).join('');
+    if (!last) recipe += '<li class="knot">knot</li>';
+  });
+  $('beads').innerHTML = html || '<p class="msg">Type something above to see it in beads.</p>';
+  $('recipe').innerHTML = recipe;
+}
+
+function recipeText() {
+  return [...$('recipe').children].map(li => li.classList.contains('wd') ? '\n' + li.textContent.toUpperCase() : '- ' + li.textContent).join('\n').trim();
 }
 
 function render() {
@@ -394,6 +532,7 @@ function render() {
     `<div class="word"><span class="w${it.guessed ? ' guess' : ''}">${it.text.replace(/</g, '&lt;')}</span><div class="chips">` +
     it.sounds.map((s, si) => `<span class="chip${VOWELS[s] ? ' v' : ''}" data-id="${wi}:${si}">${s}</span>`).join('') +
     '</div></div>').join('') || '<p class="msg">Type something above.</p>';
+  renderBeads(items);
   return items;
 }
 
@@ -417,6 +556,22 @@ function init() {
   $('chart').innerHTML = [...Object.keys(CONSONANTS), ...Object.keys(VOWELS)].map(n =>
     `<button data-s="${n}"><b>${n}</b> ${EXAMPLES[n]} · ${(VOWELS[n] || CONSONANTS[n]).join('')}${VOWELS[n] ? "'" : ''}</button>`).join('');
   $('chart').onclick = e => { const b = e.target.closest('button'); if (b) speak([{ sounds: [b.dataset.s], pause: 0 }], opts()); };
+
+  $('shapeTiles').innerHTML = [...Object.keys(CONSONANT_SHAPES), null].map(c => {
+    const [fn, name] = c ? CONSONANT_SHAPES[c] : NO_CONSONANT;
+    return `<div class="tile"><svg width="30" height="30" viewBox="0 0 30 30"><path d="${fn(15, 15, 11)}" fill="var(--line)" stroke="var(--ink)" stroke-width="1.3" stroke-linejoin="round"/></svg><b>${c || 'none'}</b>${name}</div>`;
+  }).join('');
+  $('colorTiles').innerHTML = [...Object.keys(VOWEL_COLORS), null].map(v => {
+    const [hex, name] = v ? VOWEL_COLORS[v] : NO_VOWEL;
+    return `<div class="tile"><span style="width:24px;height:24px;border-radius:50%;background:${hex};border:1px solid var(--line)"></span><b>${v || 'none'}</b>${name}</div>`;
+  }).join('');
+  $('copyRecipe').onclick = () => {
+    const txt = recipeText();
+    const done = () => { $('copyMsg').textContent = 'Copied'; setTimeout(() => $('copyMsg').textContent = '', 1500); };
+    try {
+      navigator.clipboard.writeText(txt).then(done, () => { $('copyMsg').textContent = 'Copy not allowed here. Select the list instead.'; });
+    } catch (e) { $('copyMsg').textContent = 'Copy not allowed here. Select the list instead.'; }
+  };
 
   $('text').oninput = () => { render(); save(); };
   ['key', 'voice', 'brk'].forEach(id => $(id).onchange = save);

@@ -1,0 +1,594 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<title>Tuneic Speaker</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Unica+One&family=Atkinson+Hyperlegible:wght@400;700&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: one narrow column, like a field notebook — text in, hexagon lights up, sounds listed below */
+:root {
+  --bg: #f6f2e8;
+  --panel: #fffdf7;
+  --ink: #231d3a;
+  --muted: #625b78;
+  --line: #ddd5c3;
+  --accent: #6b4fd8;
+  --gold: #b8860b;
+  --glow: #f2c94c;
+  --font-display: "Unica One", "Trebuchet MS", sans-serif;
+  --font-body: "Atkinson Hyperlegible", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #14112a; --panel: #1d1938; --ink: #ece6ff; --muted: #a59dc4; --line: #353058;
+  --accent: #a593ff; --gold: #e8c46a; --glow: #f6d77a; color-scheme: dark } }
+:root[data-theme="dark"] {
+  --bg: #14112a; --panel: #1d1938; --ink: #ece6ff; --muted: #a59dc4; --line: #353058;
+  --accent: #a593ff; --gold: #e8c46a; --glow: #f6d77a; color-scheme: dark }
+
+* { box-sizing: border-box }
+body { background: var(--bg); color: var(--ink); font-family: var(--font-body); font-size: 16px; line-height: 1.55;
+  margin: 0; padding-block: 24px 48px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)) }
+main { max-width: 640px; margin: 0 auto; display: flex; flex-direction: column; gap: 20px }
+h1 { font-family: var(--font-display); font-weight: 400; font-size: 2.4rem; letter-spacing: .06em; margin: 0; line-height: 1 }
+.sub { color: var(--muted); margin: 4px 0 0 }
+label, .lbl { font-size: .78rem; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); font-weight: 700 }
+textarea { width: 100%; min-height: 84px; font: inherit; font-size: 1.1rem; padding: 12px; border-radius: 10px;
+  border: 1px solid var(--line); background: var(--panel); color: var(--ink); resize: vertical }
+textarea:focus, select:focus, input:focus, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px }
+.controls { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px }
+.field { display: flex; flex-direction: column; gap: 4px; min-width: 0 }
+select, input[type=range] { width: 100%; font: inherit; accent-color: var(--accent) }
+select { padding: 8px; border-radius: 8px; border: 1px solid var(--line); background: var(--panel); color: var(--ink) }
+.row { display: flex; gap: 10px; flex-wrap: wrap }
+button { font: inherit; font-weight: 700; padding: 12px 20px; border-radius: 999px; cursor: pointer;
+  border: 1px solid var(--line); background: var(--panel); color: var(--ink) }
+button.primary { background: var(--accent); border-color: var(--accent); color: var(--bg) }
+.stage { display: grid; grid-template-columns: 150px 1fr; gap: 16px; align-items: center;
+  background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 16px }
+@media (max-width: 420px) { .stage { grid-template-columns: 1fr; justify-items: center } }
+.now { min-width: 0 }
+.now .big { font-family: var(--font-display); font-size: 2rem; letter-spacing: .05em; line-height: 1.1 }
+.now .notes { font-family: var(--font-mono); color: var(--muted); font-size: .9rem }
+svg text { font-family: var(--font-mono); font-size: 13px }
+.words { display: flex; flex-wrap: wrap; gap: 14px 18px }
+.word { display: flex; flex-direction: column; gap: 4px }
+.word .w { font-weight: 700 }
+.word .w.guess::after { content: " (guessed)"; font-weight: 400; color: var(--gold); font-size: .8rem }
+.chips { display: flex; flex-wrap: wrap; gap: 4px }
+.chip { font-family: var(--font-mono); font-size: .8rem; padding: 2px 7px; border-radius: 6px; border: 1px solid var(--line) }
+.chip.v { border-style: dashed }
+.chip.lit { background: var(--glow); color: #231d3a; border-color: var(--gold) }
+.msg { color: var(--muted); font-size: .9rem; margin: 0 }
+details { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 12px 16px }
+summary { cursor: pointer; font-weight: 700 }
+.chart { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 6px 14px; margin-top: 10px;
+  font-family: var(--font-mono); font-size: .85rem; font-variant-numeric: tabular-nums }
+.chart button { padding: 4px 8px; border-radius: 6px; font-weight: 400; text-align: left; font-family: inherit; font-size: inherit }
+.hint { color: var(--muted); font-size: .88rem }
+code { font-family: var(--font-mono); font-size: .85em }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important } }
+.node { transition: fill .06s }
+.beads { display: flex; flex-wrap: wrap; gap: 10px 0; background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 14px 10px }
+.beads svg { overflow: visible }
+.bead .halo { opacity: 0; transition: opacity .06s }
+.bead.lit .halo { opacity: .6 }
+.recipe { margin: 8px 0 0; padding-left: 1.4em; font-size: .92rem; display: flex; flex-direction: column; gap: 6px }
+.recipe li { padding-left: 4px }
+.recipe .wd { font-weight: 700 }
+.recipe .knot { color: var(--muted); font-style: italic }
+.sw { display: inline-block; width: .9em; height: .9em; border-radius: 50%; vertical-align: -1px; border: 1px solid var(--line); margin-right: 3px }
+.tiles { display: flex; flex-wrap: wrap; gap: 8px 6px; margin-top: 8px }
+.tile { width: 64px; display: flex; flex-direction: column; align-items: center; gap: 2px; font-size: .72rem; color: var(--muted); text-align: center; line-height: 1.2 }
+.tile b { color: var(--ink); font-family: var(--font-mono); font-size: .78rem }
+</style>
+
+<main>
+  <header>
+    <h1>Tuneic Speaker</h1>
+    <p class="sub">Type anything. Every sound becomes a quick arpeggio on six notes.</p>
+  </header>
+
+  <div class="field">
+    <label for="text">Text</label>
+    <textarea id="text">We are the eyes of the far shore</textarea>
+  </div>
+
+  <div class="controls">
+    <div class="field">
+      <label for="key">Starting note</label>
+      <select id="key"></select>
+    </div>
+    <div class="field">
+      <label for="voice">Voice</label>
+      <select id="voice">
+        <option value="flute">Glass flute</option>
+        <option value="bell">Glass bell</option>
+        <option value="chirp">Bird chirp</option>
+      </select>
+    </div>
+    <div class="field">
+      <label for="brk">Word breaks</label>
+      <select id="brk">
+        <option value="low">Low root note</option>
+        <option value="flick">High flick</option>
+        <option value="slide">Slide down</option>
+        <option value="pause">Silent pause</option>
+      </select>
+    </div>
+    <div class="field">
+      <label for="speed">Speed <span id="speedOut"></span></label>
+      <input type="range" id="speed" min="4" max="30" step="1" value="16">
+    </div>
+  </div>
+
+  <div class="row">
+    <button class="primary" id="play">Speak</button>
+    <button id="stop">Stop</button>
+  </div>
+  <p class="msg" id="status">Loading the pronunciation dictionary…</p>
+
+  <section class="stage" aria-label="Now playing">
+    <svg id="hex" viewBox="0 0 150 150" width="150" height="150" role="img" aria-label="Six scale degrees on a hexagon"></svg>
+    <div class="now">
+      <div class="lbl">Now sounding</div>
+      <div class="big" id="nowName">—</div>
+      <div class="notes" id="nowNotes">Press Speak</div>
+    </div>
+  </section>
+
+  <section>
+    <div class="lbl" style="margin-bottom:8px">Sounds</div>
+    <div class="words" id="words"></div>
+  </section>
+
+  <section>
+    <div class="lbl" style="margin-bottom:8px">Beads</div>
+    <div class="beads" id="beads"></div>
+  </section>
+
+  <details id="recipeBox">
+    <summary>Stringing recipe</summary>
+    <p class="hint">Bead by bead, left to right. Notched beads read vowel first.</p>
+    <ol class="recipe" id="recipe"></ol>
+    <div class="row" style="margin-top:12px"><button id="copyRecipe">Copy recipe</button><span class="msg" id="copyMsg" style="align-self:center"></span></div>
+  </details>
+
+  <details>
+    <summary>Bead chart</summary>
+    <p class="hint">Each bead is one syllable. Shape is the consonant, color is the vowel. A plain round bead has no consonant, a white bead has no vowel, a notch means the vowel comes first, and a knot ends each word.</p>
+    <div class="lbl" style="margin-top:12px">Consonant shapes</div>
+    <div class="tiles" id="shapeTiles"></div>
+    <div class="lbl" style="margin-top:16px">Vowel colors</div>
+    <div class="tiles" id="colorTiles"></div>
+  </details>
+
+  <details>
+    <summary>Sound chart and tips</summary>
+    <p class="hint">Solid chips are consonants (low notes). Dashed chips are vowels (an octave up). Every sound starts on 1. Tap a sound to hear it.</p>
+    <p class="hint">Invented names are guessed from spelling. To spell sounds yourself, put them in curly braces: <code>{AY UH OO V ORE EE UH}</code></p>
+    <div class="chart" id="chart"></div>
+  </details>
+</main>
+
+<script>
+/* =========================================================
+   1. THE TUNEIC CHART
+   Each sound = which scale degrees play after the root (1).
+   Degrees: 1 2 3 5 6 8  (major pentatonic + the octave)
+   Change these numbers to make your own language!
+   ========================================================= */
+const CONSONANTS = {
+  S:[2], TH:[3], M:[5], F:[6], B:[8],
+  NG:[2,3], D:[2,5], N:[2,6], SH:[2,8], K:[3,5], T:[3,6], R:[3,8], L:[5,6], W:[5,8], P:[6,8],
+  J:[2,3,5], Y:[2,3,6], CH:[2,3,8], H:[2,5,6], DH:[2,5,8], V:[2,6,8], Z:[3,5,6], G:[3,5,8], ZH:[3,6,8]
+};
+const VOWELS = {
+  OU:[2,3], OW:[2,5], UH:[2,6], OI:[2,8], IE:[3,5], AR:[3,6], I:[3,8], EH:[5,6], EER:[5,8], A:[6,8],
+  ORE:[2,3,5], EE:[2,3,6], OH:[2,5,6], AY:[2,5,8], OO:[2,6,8], IR:[3,5,6], AH:[3,5,8], ERE:[5,6,8]
+};
+// Example words, for the chart labels
+const EXAMPLES = { S:'sit',TH:'thick',M:'man',F:'fox',B:'baby',NG:'ring',D:'dog',N:'net',SH:'shut',K:'cat',T:'tunic',R:'run',
+  L:'live',W:'wit',P:'poppy',J:'jam',Y:'you',CH:'chat',H:'hop',DH:'this',V:'vine',Z:'zit',G:'gun',ZH:'azure',
+  OU:'wood',OW:'how',UH:'the',OI:'toy',IE:'guy',AR:'arm',I:'bit',EH:'end',EER:'beer',A:'glass',
+  ORE:'your',EE:'bee',OH:'toe',AY:'bay',OO:'too',IR:'bird',AH:'swan',ERE:'air' };
+
+// Scale degree -> half-steps above the starting note
+const SEMITONES = { 1:0, 2:2, 3:4, 5:7, 6:9, 8:12 };
+
+/* =========================================================
+   2. TEXT -> SOUNDS
+   English words come from the CMU Pronouncing Dictionary
+   (ARPAbet symbols), then get converted to Tuneic sound names.
+   ========================================================= */
+const ARPA_CONS = { B:'B',CH:'CH',D:'D',DH:'DH',F:'F',G:'G',HH:'H',JH:'J',K:'K',L:'L',M:'M',N:'N',NG:'NG',
+  P:'P',R:'R',S:'S',SH:'SH',T:'T',TH:'TH',V:'V',W:'W',Y:'Y',Z:'Z',ZH:'ZH' };
+const ARPA_VOW = { AA:'AH',AE:'A',AH:'UH',AO:'AH',AW:'OW',AY:'IE',EH:'EH',ER:'IR',EY:'AY',IH:'I',IY:'EE',
+  OW:'OH',OY:'OI',UH:'OU',UW:'OO' };
+// Vowel + R (when the R isn't followed by another vowel) becomes one r-colored vowel
+const R_VOW = { AA:'AR',AO:'ORE',OW:'ORE',UH:'ORE',UW:'ORE',IH:'EER',IY:'EER',EH:'ERE',EY:'ERE',AE:'ERE' };
+
+let DICT = new Map();
+
+function arpaToTuneic(arpa) {
+  const out = [];
+  for (let i = 0; i < arpa.length; i++) {
+    const p = arpa[i], next = arpa[i + 1], after = arpa[i + 2];
+    if (ARPA_VOW[p]) {
+      if (next === 'R' && R_VOW[p] && !(after && ARPA_VOW[after])) { out.push(R_VOW[p]); i++; continue; }
+      out.push(ARPA_VOW[p]);
+    } else if (ARPA_CONS[p]) out.push(ARPA_CONS[p]);
+  }
+  return out;
+}
+
+// Rough spelling rules for words the dictionary doesn't know (your invented names)
+const SPELL = [
+  ['tch','CH'],['sh','SH'],['ch','CH'],['th','TH'],['ng','NG'],['ph','F'],['wh','W'],['ck','K'],['qu','K W'],
+  ['ee','IY'],['ea','IY'],['oo','UW'],['uu','UW'],['ou','AW'],['ow','OW'],['oi','OY'],['oy','OY'],
+  ['ai','EY'],['ay','EY'],['ae','EY'],['ie','IY'],['au','AO'],['ar','AA R'],['or','AO R'],
+  ['er','ER'],['ir','ER'],['ur','ER'],
+  ['a','AE'],['e','EH'],['i','IH'],['o','AA'],['u','AH'],['y','IY'],
+  ['b','B'],['c','K'],['d','D'],['f','F'],['g','G'],['h','HH'],['j','JH'],['k','K'],['l','L'],['m','M'],
+  ['n','N'],['p','P'],['q','K'],['r','R'],['s','S'],['t','T'],['v','V'],['w','W'],['x','K S'],['z','Z']
+];
+function guessArpa(word) {
+  const w = word.toLowerCase().replace(/[^a-z]/g, '').replace(/([b-df-hj-np-tv-z])\1/g, '$1');
+  const out = [];
+  let i = 0;
+  while (i < w.length) {
+    const rule = SPELL.find(([s]) => w.startsWith(s, i));
+    if (!rule) { i++; continue; }
+    let p = rule[1];
+    if (rule[0] === 'y' && i === 0) p = 'Y';           // y at the start is a consonant
+    out.push(...p.split(' '));
+    i += rule[0].length;
+  }
+  return out;
+}
+
+// Splits text into words; returns [{text, sounds:[names], guessed, pauseAfter}]
+function parse(text) {
+  const items = [];
+  const re = /\{([^}]*)\}|([A-Za-z][A-Za-z']*)|([.!?,;:]+)/g;
+  let m;
+  while ((m = re.exec(text))) {
+    if (m[1] !== undefined) {
+      const sounds = m[1].toUpperCase().split(/[\s,]+/).filter(s => CONSONANTS[s] || VOWELS[s]);
+      if (sounds.length) items.push({ text: '{' + m[1].trim() + '}', sounds, guessed: false, pause: 3 });
+    } else if (m[2]) {
+      const key = m[2].toLowerCase();
+      const known = DICT.get(key);
+      const sounds = arpaToTuneic(known || guessArpa(key));
+      if (sounds.length) items.push({ text: m[2], sounds, guessed: !known, pause: 3 });
+    } else if (m[3] && items.length) {
+      items[items.length - 1].pause = 7;                // longer rest at punctuation
+    }
+  }
+  return items;
+}
+
+/* =========================================================
+   2b. THE BEAD SCRIPT
+   One bead = one syllable.
+   SHAPE = consonant, COLOR = vowel, NOTCH = vowel comes first.
+   Plain round = no consonant. White = no vowel. Knot = word break.
+   Change the colors and names here to match your real beads!
+   ========================================================= */
+const VOWEL_COLORS = {
+  OU:['#D7263D','red'], OW:['#F46036','orange'], UH:['#F2C14E','yellow'], OI:['#A1C181','sage'],
+  IE:['#2E933C','green'], AR:['#1B998B','teal'], I:['#3FC1C9','aqua'], EH:['#4EA5D9','sky blue'],
+  EER:['#2E4A9E','navy'], A:['#5B3E96','indigo'], ORE:['#9B5DE5','purple'], EE:['#D81E9B','magenta'],
+  OH:['#F7A1C4','pink'], AY:['#8C5A3C','brown'], OO:['#D2B48C','tan'], IR:['#7D7D7D','gray'],
+  AH:['#222222','black'], ERE:['#B8962E','gold']
+};
+const NO_VOWEL = ['#F4F4F0', 'white'];
+
+// Shape drawing helpers: each returns an SVG path centered on (x, y) with size r
+const pathOf = pts => 'M' + pts.map(p => p[0].toFixed(1) + ' ' + p[1].toFixed(1)).join(' L') + ' Z';
+const polyS = (n, rot = -Math.PI / 2, sx = 1, sy = 1) => (x, y, r) =>
+  pathOf([...Array(n)].map((_, i) => { const a = rot + i * 2 * Math.PI / n; return [x + r * sx * Math.cos(a), y + r * sy * Math.sin(a)]; }));
+const starS = n => (x, y, r) =>
+  pathOf([...Array(2 * n)].map((_, i) => { const a = -Math.PI / 2 + i * Math.PI / n, rr = i % 2 ? r * 0.5 : r; return [x + rr * Math.cos(a), y + rr * Math.sin(a)]; }));
+const flowerS = n => (x, y, r) =>
+  pathOf([...Array(72)].map((_, i) => { const a = i * Math.PI / 36, rr = r * (0.78 + 0.22 * Math.cos(n * a)); return [x + rr * Math.cos(a), y + rr * Math.sin(a)]; }));
+const ovalS = (sx, sy) => (x, y, r) =>
+  `M${x - r * sx} ${y} A ${r * sx} ${r * sy} 0 1 0 ${x + r * sx} ${y} A ${r * sx} ${r * sy} 0 1 0 ${x - r * sx} ${y} Z`;
+
+const CONSONANT_SHAPES = {
+  S:[polyS(3),'triangle'], TH:[polyS(4, -Math.PI / 4),'square'], M:[polyS(5),'pentagon'], F:[polyS(6),'hexagon'],
+  B:[polyS(8, -Math.PI / 8),'octagon'], NG:[polyS(4),'diamond'], D:[starS(4),'4-point star'], N:[starS(5),'5-point star'],
+  SH:[starS(6),'6-point star'], K:[starS(8),'8-point star'], T:[flowerS(4),'4-petal flower'], R:[flowerS(5),'5-petal flower'],
+  L:[flowerS(6),'6-petal flower'], W:[flowerS(8),'8-petal flower'], P:[ovalS(1, 0.6),'wide oval'], J:[ovalS(0.6, 1),'tall oval'],
+  Y:[polyS(3, Math.PI / 2),'down triangle'],
+  CH:[(x, y, r) => `M${x - r} ${y + r * 0.35} A ${r} ${r} 0 0 1 ${x + r} ${y + r * 0.35} Z`,'half moon'],
+  H:[(x, y, r) => `M${x} ${y - r} C ${x + r * 1.1} ${y - r * 0.1}, ${x + r * 0.7} ${y + r}, ${x} ${y + r} C ${x - r * 0.7} ${y + r}, ${x - r * 1.1} ${y - r * 0.1}, ${x} ${y - r} Z`,'teardrop'],
+  DH:[(x, y, r) => { const t = r * 0.38; return pathOf([[x-t,y-r],[x+t,y-r],[x+t,y-t],[x+r,y-t],[x+r,y+t],[x+t,y+t],[x+t,y+r],[x-t,y+r],[x-t,y+t],[x-r,y+t],[x-r,y-t],[x-t,y-t]]); },'plus'],
+  V:[(x, y, r) => `M${x} ${y + r} C ${x - r * 1.4} ${y - r * 0.2}, ${x - r * 0.5} ${y - r * 1.2}, ${x} ${y - r * 0.45} C ${x + r * 0.5} ${y - r * 1.2}, ${x + r * 1.4} ${y - r * 0.2}, ${x} ${y + r} Z`,'heart'],
+  Z:[(x, y, r) => { const w = r * 0.85; return `M${x-w} ${y-r} H ${x+w} Q ${x+r} ${y-r} ${x+r} ${y-w} V ${y+w} Q ${x+r} ${y+r} ${x+w} ${y+r} H ${x-w} Q ${x-r} ${y+r} ${x-r} ${y+w} V ${y-w} Q ${x-r} ${y-r} ${x-w} ${y-r} Z`; },'rounded square'],
+  G:[polyS(4, 0, 1.25, 0.75),'bicone'],
+  ZH:[(x, y, r) => `M${x - r * 1.1} ${y - r * 0.55} H ${x + r * 1.1} V ${y + r * 0.55} H ${x - r * 1.1} Z`,'tube']
+};
+const NO_CONSONANT = [ovalS(1, 1), 'round'];
+
+// Group a word's sounds into beads. Consonant + vowel is preferred;
+// vowel + consonant (notched) only when that consonant isn't followed by a vowel.
+function toBeads(sounds) {
+  const beads = [];
+  for (let i = 0; i < sounds.length; i++) {
+    const a = sounds[i], b = sounds[i + 1], c = sounds[i + 2];
+    if (CONSONANTS[a] && VOWELS[b]) { beads.push({ c: a, v: b, notch: false, idx: [i, i + 1] }); i++; }
+    else if (VOWELS[a] && CONSONANTS[b] && !VOWELS[c]) { beads.push({ v: a, c: b, notch: true, idx: [i, i + 1] }); i++; }
+    else if (VOWELS[a]) beads.push({ v: a, idx: [i] });
+    else beads.push({ c: a, idx: [i] });
+  }
+  return beads;
+}
+
+function beadSVG(x, y, r, bead) {
+  const shape = bead.c ? CONSONANT_SHAPES[bead.c][0] : NO_CONSONANT[0];
+  const color = bead.v ? VOWEL_COLORS[bead.v][0] : NO_VOWEL[0];
+  let s = `<circle class="halo" cx="${x}" cy="${y}" r="${r + 7}" fill="var(--glow)"/>`;
+  s += `<path d="${shape(x, y, r)}" fill="${color}" stroke="var(--ink)" stroke-width="1.3" stroke-linejoin="round"/>`;
+  if (bead.notch) s += `<path d="M${x - 4} ${y - r - 3} L${x} ${y - r + 4} L${x + 4} ${y - r - 3}" fill="none" stroke="var(--ink)" stroke-width="2.2" stroke-linecap="round"/>`;
+  return s;
+}
+
+function knotSVG(x, y) {
+  return `<path d="M${x-6} ${y} C ${x-6} ${y-9}, ${x+6} ${y-9}, ${x+6} ${y} S ${x-6} ${y+9}, ${x-6} ${y}" fill="none" stroke="var(--muted)" stroke-width="2"/><circle cx="${x}" cy="${y}" r="3" fill="var(--muted)"/>`;
+}
+
+function beadName(b) {
+  const shape = b.c ? CONSONANT_SHAPES[b.c][1] : NO_CONSONANT[1];
+  const col = b.v ? VOWEL_COLORS[b.v] : NO_VOWEL;
+  const sounds = b.notch ? b.v + ' ' + b.c : [b.c, b.v].filter(Boolean).join(' ');
+  return `<span class="sw" style="background:${col[0]}"></span>${col[1]} ${shape}${b.notch ? ', notched' : ''} <span style="color:var(--muted)">(${sounds})</span>`;
+}
+
+/* =========================================================
+   3. SOUNDS -> AUDIO  (Web Audio API)
+   ========================================================= */
+let ctx = null, master = null, timers = [];
+const NOTE_NAMES = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
+
+function degreesFor(name) {
+  const isVowel = !!VOWELS[name];
+  const degs = isVowel ? VOWELS[name] : CONSONANTS[name];
+  // Every sound starts on 1; vowels jump up an octave after it
+  return [{ d: 1, oct: 0 }, ...degs.map(d => ({ d, oct: isVowel ? 1 : 0 }))];
+}
+
+function playNote(freq, t, dur, voice) {
+  const g = ctx.createGain();
+  g.connect(master);
+  const o = ctx.createOscillator();
+  if (voice === 'bell') {
+    o.type = 'sine'; o.frequency.setValueAtTime(freq, t);
+    const o2 = ctx.createOscillator(), g2 = ctx.createGain();
+    o2.type = 'sine'; o2.frequency.setValueAtTime(freq * 2.76, t);   // glassy overtone
+    g2.gain.value = 0.25; o2.connect(g2); g2.connect(g);
+    g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(0.3, t + 0.005);
+    g.gain.exponentialRampToValueAtTime(0.001, t + dur * 3.5);
+    o2.start(t); o2.stop(t + dur * 3.6);
+    o.connect(g); o.start(t); o.stop(t + dur * 3.6);
+    return;
+  }
+  if (voice === 'chirp') {
+    o.type = 'sine';
+    o.frequency.setValueAtTime(freq * 0.8, t);
+    o.frequency.exponentialRampToValueAtTime(freq, t + dur * 0.35);   // fast upward swoop
+    g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(0.32, t + 0.008);
+    g.gain.linearRampToValueAtTime(0, t + dur * 0.95);
+  } else { // flute
+    o.type = 'triangle';
+    o.frequency.setValueAtTime(freq * 0.97, t);
+    o.frequency.exponentialRampToValueAtTime(freq, t + 0.03);
+    g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(0.25, t + 0.015);
+    g.gain.setValueAtTime(0.25, t + dur * 0.6); g.gain.linearRampToValueAtTime(0, t + dur * 1.05);
+  }
+  o.connect(g); o.start(t); o.stop(t + dur * 1.1);
+}
+
+function breath(t0, t1) {   // soft airy hiss under the flute
+  const len = Math.ceil(ctx.sampleRate * (t1 - t0 + 0.1));
+  const buf = ctx.createBuffer(1, len, ctx.sampleRate), d = buf.getChannelData(0);
+  for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
+  const n = ctx.createBufferSource(); n.buffer = buf;
+  const f = ctx.createBiquadFilter(); f.type = 'highpass'; f.frequency.value = 3000;
+  const g = ctx.createGain(); g.gain.value = 0.02;
+  n.connect(f); f.connect(g); g.connect(master); n.start(t0); n.stop(t1);
+}
+
+/* Word-break sounds: these replace the silent gap between words,
+   so speech flows as one string but a listener can still find the breaks. */
+function playBreak(base, t, dur, mode, voice) {
+  if (mode === 'low') {                 // the root note, one octave down
+    playNote(base / 2, t, dur * 1.5, voice);
+    return dur * 1.5;
+  }
+  if (mode === 'flick') {               // two very fast high octave notes
+    playNote(base * 2, t, dur * 0.5, voice);
+    playNote(base * 4, t + dur * 0.5, dur * 0.5, voice);
+    return dur;
+  }
+  if (mode === 'slide') {               // a quick glide from high back down to the root
+    const o = ctx.createOscillator(), g = ctx.createGain();
+    o.type = 'triangle';
+    o.frequency.setValueAtTime(base * 2, t);
+    o.frequency.exponentialRampToValueAtTime(base, t + dur * 1.5);
+    g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(0.22, t + 0.015);
+    g.gain.setValueAtTime(0.22, t + dur * 1.2); g.gain.linearRampToValueAtTime(0, t + dur * 1.6);
+    o.connect(g); g.connect(master); o.start(t); o.stop(t + dur * 1.7);
+    return dur * 1.5;
+  }
+  return dur * 3;                       // 'pause': plain silence, like before
+}
+
+function stopAll() {
+  timers.forEach(clearTimeout); timers = [];
+  if (master) { master.gain.setTargetAtTime(0, ctx.currentTime, 0.02); master = null; }
+  lightChip(null); showNow(null);
+}
+
+function speak(items, opts) {
+  stopAll();
+  ctx = ctx || new (window.AudioContext || window.webkitAudioContext)();
+  if (ctx.state === 'suspended') ctx.resume();
+  master = ctx.createGain(); master.gain.value = 0.9; master.connect(ctx.destination);
+  const dur = 1 / opts.speed, base = 261.63 * Math.pow(2, opts.key / 12);
+  const t0 = ctx.currentTime + 0.08; let t = t0;
+  items.forEach((item, wi) => {
+    item.sounds.forEach((name, si) => {
+      const notes = degreesFor(name);
+      timers.push(setTimeout(() => { lightChip(wi + ':' + si); showNow(name, notes); }, (t - t0) * 1000 + 80));
+      notes.forEach(n => { playNote(base * Math.pow(2, (SEMITONES[n.d] + 12 * n.oct) / 12), t, dur, opts.voice); t += dur; });
+      t += dur;                      // tiny gap between sounds
+    });
+    const isLast = wi === items.length - 1;
+    if (item.pause > 3 || opts.brk === 'pause') {
+      t += dur * item.pause;           // real rest at punctuation (or if breaks are off)
+    } else if (!isLast) {
+      timers.push(setTimeout(() => showBreak(), (t - t0) * 1000 + 80));
+      t += playBreak(base, t, dur, opts.brk, opts.voice) + dur;
+    }
+  });
+  if (opts.voice === 'flute') breath(t0, t);
+  timers.push(setTimeout(() => { lightChip(null); showNow(null); }, (t - t0) * 1000 + 300));
+}
+
+/* =========================================================
+   4. THE PAGE
+   ========================================================= */
+const $ = id => document.getElementById(id);
+const HEX_ORDER = [1, 2, 3, 5, 6, 8];
+
+function drawHex() {
+  let s = '<polygon id="hexline" fill="none" stroke="var(--line)" stroke-width="2" points="';
+  const pts = HEX_ORDER.map((d, i) => {
+    const a = -Math.PI / 2 + i * Math.PI / 3;
+    return [75 + 55 * Math.cos(a), 75 + 55 * Math.sin(a)];
+  });
+  s += pts.map(p => p.map(v => v.toFixed(1)).join(',')).join(' ') + '"/>';
+  pts.forEach((p, i) => {
+    s += `<circle class="node" id="n${HEX_ORDER[i]}" cx="${p[0].toFixed(1)}" cy="${p[1].toFixed(1)}" r="15" fill="var(--panel)" stroke="var(--accent)" stroke-width="2"/>`;
+    s += `<text x="${p[0].toFixed(1)}" y="${(p[1] + 4.5).toFixed(1)}" text-anchor="middle" fill="var(--ink)">${HEX_ORDER[i]}</text>`;
+  });
+  $('hex').innerHTML = s;
+}
+
+function showNow(name, notes) {
+  HEX_ORDER.forEach(d => $('n' + d).setAttribute('fill', 'var(--panel)'));
+  if (!name) { $('nowName').textContent = '—'; $('nowNotes').textContent = 'Press Speak'; return; }
+  notes.forEach(n => $('n' + n.d).setAttribute('fill', n.oct ? 'var(--accent)' : 'var(--glow)'));
+  $('nowName').textContent = name;
+  $('nowNotes').textContent = notes.map(n => n.d + (n.oct ? "'" : '')).join(' · ') + '  (as in ' + EXAMPLES[name] + ')';
+}
+
+function showBreak() {
+  HEX_ORDER.forEach(d => $('n' + d).setAttribute('fill', 'var(--panel)'));
+  lightChip(null);
+  $('nowName').textContent = 'Word break';
+  $('nowNotes').textContent = $('brk').selectedOptions[0].textContent;
+}
+
+function lightChip(id) {
+  document.querySelectorAll('.chip.lit, .bead.lit').forEach(c => c.classList.remove('lit'));
+  if (id) {
+    const c = document.querySelector(`.chip[data-id="${id}"]`); if (c) c.classList.add('lit');
+    const b = document.querySelector(`.bead[data-sounds~="${id}"]`); if (b) b.classList.add('lit');
+  }
+}
+
+function renderBeads(items) {
+  const step = 32, cy = 22;
+  let html = '', recipe = '';
+  items.forEach((it, wi) => {
+    const beads = toBeads(it.sounds), last = wi === items.length - 1;
+    const inner = beads.length * step, W = inner + (last ? 6 : 26);
+    let s = `<svg width="${W}" height="56" viewBox="0 0 ${W} 56" role="img" aria-label="${it.text.replace(/"/g, '')} in beads">`;
+    s += `<line x1="0" y1="${cy}" x2="${W}" y2="${cy}" stroke="var(--muted)" stroke-width="1.3"/>`;
+    beads.forEach((b, bi) => {
+      s += `<g class="bead" data-sounds="${b.idx.map(i => wi + ':' + i).join(' ')}">${beadSVG(18 + bi * step, cy, 12, b)}</g>`;
+    });
+    if (!last) s += knotSVG(inner + 13, cy);
+    s += `<text x="${inner / 2 + 2}" y="52" text-anchor="middle" fill="var(--muted)" style="font-size:11px">${it.text.replace(/</g, '&lt;')}</text></svg>`;
+    html += s;
+    recipe += `<li class="wd">${it.text.replace(/</g, '&lt;')}</li>` + beads.map(b => `<li>${beadName(b)}</li>`).join('');
+    if (!last) recipe += '<li class="knot">knot</li>';
+  });
+  $('beads').innerHTML = html || '<p class="msg">Type something above to see it in beads.</p>';
+  $('recipe').innerHTML = recipe;
+}
+
+function recipeText() {
+  return [...$('recipe').children].map(li => li.classList.contains('wd') ? '\n' + li.textContent.toUpperCase() : '- ' + li.textContent).join('\n').trim();
+}
+
+function render() {
+  const items = parse($('text').value);
+  $('words').innerHTML = items.map((it, wi) =>
+    `<div class="word"><span class="w${it.guessed ? ' guess' : ''}">${it.text.replace(/</g, '&lt;')}</span><div class="chips">` +
+    it.sounds.map((s, si) => `<span class="chip${VOWELS[s] ? ' v' : ''}" data-id="${wi}:${si}">${s}</span>`).join('') +
+    '</div></div>').join('') || '<p class="msg">Type something above.</p>';
+  renderBeads(items);
+  return items;
+}
+
+function opts() {
+  return { key: +$('key').value, speed: +$('speed').value, voice: $('voice').value, brk: $('brk').value };
+}
+
+function save() {
+  try { localStorage.setItem('tuneic', JSON.stringify({ text: $('text').value, ...opts() })); } catch (e) {}
+}
+
+function init() {
+  $('key').innerHTML = NOTE_NAMES.map((n, i) => `<option value="${i}">${n}</option>`).join('');
+  try {
+    const s = JSON.parse(localStorage.getItem('tuneic') || 'null');
+    if (s) { $('text').value = s.text ?? $('text').value; $('key').value = s.key ?? 0; $('speed').value = s.speed ?? 16; $('voice').value = s.voice ?? 'flute'; $('brk').value = s.brk ?? 'low'; }
+  } catch (e) {}
+  $('speedOut').textContent = '· ' + $('speed').value + '/s';
+  drawHex(); render();
+
+  $('chart').innerHTML = [...Object.keys(CONSONANTS), ...Object.keys(VOWELS)].map(n =>
+    `<button data-s="${n}"><b>${n}</b> ${EXAMPLES[n]} · ${(VOWELS[n] || CONSONANTS[n]).join('')}${VOWELS[n] ? "'" : ''}</button>`).join('');
+  $('chart').onclick = e => { const b = e.target.closest('button'); if (b) speak([{ sounds: [b.dataset.s], pause: 0 }], opts()); };
+
+  $('shapeTiles').innerHTML = [...Object.keys(CONSONANT_SHAPES), null].map(c => {
+    const [fn, name] = c ? CONSONANT_SHAPES[c] : NO_CONSONANT;
+    return `<div class="tile"><svg width="30" height="30" viewBox="0 0 30 30"><path d="${fn(15, 15, 11)}" fill="var(--line)" stroke="var(--ink)" stroke-width="1.3" stroke-linejoin="round"/></svg><b>${c || 'none'}</b>${name}</div>`;
+  }).join('');
+  $('colorTiles').innerHTML = [...Object.keys(VOWEL_COLORS), null].map(v => {
+    const [hex, name] = v ? VOWEL_COLORS[v] : NO_VOWEL;
+    return `<div class="tile"><span style="width:24px;height:24px;border-radius:50%;background:${hex};border:1px solid var(--line)"></span><b>${v || 'none'}</b>${name}</div>`;
+  }).join('');
+  $('copyRecipe').onclick = () => {
+    const txt = recipeText();
+    const done = () => { $('copyMsg').textContent = 'Copied'; setTimeout(() => $('copyMsg').textContent = '', 1500); };
+    try {
+      navigator.clipboard.writeText(txt).then(done, () => { $('copyMsg').textContent = 'Copy not allowed here. Select the list instead.'; });
+    } catch (e) { $('copyMsg').textContent = 'Copy not allowed here. Select the list instead.'; }
+  };
+
+  $('text').oninput = () => { render(); save(); };
+  ['key', 'voice', 'brk'].forEach(id => $(id).onchange = save);
+  $('speed').oninput = () => { $('speedOut').textContent = '· ' + $('speed').value + '/s'; save(); };
+  $('play').onclick = () => { const items = render(); if (items.length) speak(items, opts()); };
+  $('stop').onclick = stopAll;
+
+  fetch('tuneic-cmudict.txt').then(r => { if (!r.ok) throw 0; return r.text(); }).then(txt => {
+    for (const line of txt.split('\n')) {
+      const sp = line.indexOf(' ');
+      if (sp > 0) DICT.set(line.slice(0, sp), line.slice(sp + 1).trim().split(' '));
+    }
+    $('status').textContent = DICT.size.toLocaleString() + ' English words ready. Unknown words are guessed from spelling.';
+    render();
+  }).catch(() => {
+    $('status').textContent = "Couldn't load the dictionary, so every word is guessed from spelling.";
+  });
+}
+init();
+</script>
